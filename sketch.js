@@ -55,7 +55,8 @@ function slidersFromPosition(x, y) {
 // --- INICIALIZACIÓN (SETUP) ---
 function setup() {
   let container = document.getElementById('viz-container');
-  canvas = createCanvas(container.offsetWidth, container.offsetHeight);
+  // AÑADIMOS P2D PARA FORZAR EL RENDERIZADOR 2D
+  canvas = createCanvas(container.offsetWidth, container.offsetHeight, P2D);
   canvas.parent('viz-container');
   canvas.drop(handleFile);
 
