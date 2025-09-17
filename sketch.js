@@ -55,7 +55,6 @@ function slidersFromPosition(x, y) {
 // --- INICIALIZACIÓN (SETUP) ---
 function setup() {
   let container = document.getElementById('viz-container');
-  // AÑADIMOS P2D PARA FORZAR EL RENDERIZADOR 2D
   canvas = createCanvas(container.offsetWidth, container.offsetHeight, P2D);
   canvas.parent('viz-container');
   canvas.drop(handleFile);
@@ -115,23 +114,17 @@ function updateGradientBuffer() {
 function draw() {
     background(11, 11, 11);
 
-    // 1. Dibuja el gradiente completo en el lienzo principal.
     image(gradientBuffer, 0, 0);
-
-    // 2. Cambia el modo de composición del lienzo a 'destination-in'.
     drawingContext.globalCompositeOperation = 'destination-in';
-
-    // 3. Dibuja la máscara (el círculo blanco).
     image(maskBuffer, 0, 0);
-
-    // 4. IMPORTANTE: Restaura el modo de composición a su valor por defecto.
     drawingContext.globalCompositeOperation = 'source-over';
 
-    // Dibujamos el contorno negro por encima
     noFill();
     stroke(0);
     strokeWeight(2.5);
     circle(diagramCenter.x, diagramCenter.y, diagramRadius * 2);
+
+    drawTernaryGrid();
 
     drawAttractors();
     drawPoints();
@@ -221,8 +214,7 @@ function handleFile(file) {
   if (file.type === 'image') {
     if (dist(mouseX, mouseY, diagramCenter.x, diagramCenter.y) <= diagramRadius) {
         loadImage(file.data, img => {
-          const name = file.name.replace(/\.[^/.]+$/, "");
-          addPoint(name, img, {x: mouseX, y: mouseY});
+          addPoint(null, img, {x: mouseX, y: mouseY});
         });
     }
   }
@@ -234,8 +226,7 @@ function handleFileInput(event) {
         const reader = new FileReader();
         reader.onload = (e) => {
             loadImage(e.target.result, img => {
-                const name = file.name.replace(/\.[^/.]+$/, "");
-                addPoint(name, img);
+                addPoint(null, img);
             });
         };
         reader.readAsDataURL(file);
@@ -245,6 +236,48 @@ function handleFileInput(event) {
 
 
 // --- FUNCIONES DE DIBUJO AUXILIARES ---
+
+function drawTernaryGrid() {
+    push();
+    stroke(255, 255, 255, 50);
+    strokeWeight(0.75);
+
+    const pI = attractors.icono.pos;
+    const pD = attractors.indice.pos;
+    const pS = attractors.simbolo.pos;
+
+    function getTernaryCoord(wI, wD, wS) {
+        const sum = wI + wD + wS || 1;
+        const normI = wI / sum;
+        const normD = wD / sum;
+        const normS = wS / sum;
+
+        const x = normI * pI.x + normD * pD.x + normS * pS.x;
+        const y = normI * pI.y + normD * pD.y + normS * pS.y;
+        return createVector(x, y);
+    }
+
+    for (let i = 10; i < 100; i += 10) {
+        const val = i / 100.0;
+
+        // Líneas paralelas al eje Índice-Símbolo (Ícono constante)
+        let p1 = getTernaryCoord(val, 1.0 - val, 0);
+        let p2 = getTernaryCoord(val, 0, 1.0 - val);
+        line(p1.x, p1.y, p2.x, p2.y);
+
+        // Líneas paralelas al eje Ícono-Símbolo (Índice constante)
+        p1 = getTernaryCoord(1.0 - val, val, 0);
+        p2 = getTernaryCoord(0, val, 1.0 - val);
+        line(p1.x, p1.y, p2.x, p2.y);
+
+        // Líneas paralelas al eje Ícono-Índice (Símbolo constante)
+        p1 = getTernaryCoord(1.0 - val, 0, val);
+        p2 = getTernaryCoord(0, 1.0 - val, val);
+        line(p1.x, p1.y, p2.x, p2.y);
+    }
+    pop();
+}
+
 
 function drawAttractors() {
   for (const key in attractors) {
@@ -294,17 +327,13 @@ function drawPoints() {
       rect(0, 0, p.size * 1.5, p.size * 1.5);
     }
 
-    // --- ETIQUETAS SIEMPRE VISIBLES ---
     textAlign(CENTER);
-    
-    // Dibujar el nombre del ítem
     fill(11,11,11,180);
     noStroke();
     textSize(14);
     fill(234, 234, 234);
     text(`${p.name}${p.locked ? ' 🔒' : ''}`, 0, -p.size - 10);
     
-    // Dibujar los valores ico/ind/sim
     textSize(11);
     fill(234, 234, 234);
     text(`ico(${p.vals.icono}) ind(${p.vals.indice}) sim(${p.vals.simbolo})`, 0, p.size + 15);
@@ -352,8 +381,8 @@ function setupDOMControls() {
 }
 
 function addPoint(name, img = null, dropPos = null) {
-    const pointName = typeof name === 'string' ? name : (prompt("Dale un nombre al nuevo elemento:", "Elemento sin título") || "Elemento sin título");
-    if (!pointName) return;
+    const pointName = prompt("Ingresa un nombre para el nuevo elemento:", "Elemento sin título");
+    if (!pointName || pointName.trim() === "") return;
 
     let finalPos = dropPos ? createVector(dropPos.x, dropPos.y) : null;
     if (finalPos) {
