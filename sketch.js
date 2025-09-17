@@ -1,3 +1,5 @@
+// VERSIÓN CORREGIDA Y FINAL
+
 // --- VARIABLES GLOBALES ---
 let points = [];
 let attractors;
@@ -7,7 +9,7 @@ const attractorsDefault = {
   simbolo: { r: 10, name: 'Símbolo', color: '#38bdf8' }
 };
 
-// MODIFICADO: Variables para el diagrama
+// Variables para el diagrama
 let diagramCenter;
 let diagramRadius;
 
@@ -24,9 +26,7 @@ let sliders = {};
 let sliderVals = {};
 let listContainer;
 
-
 // --- LÓGICA DE CÁLCULO (Coordenadas Baricéntricas) ---
-// Esta lógica no necesita cambios, funciona con cualquier triángulo de atractores.
 function computeFromSliders(vals) {
   const wI = Math.max(vals.icono, 1);
   const wD = Math.max(vals.indice, 1);
@@ -57,18 +57,16 @@ function slidersFromPosition(x, y) {
   return { icono: mapVal(u), indice: mapVal(v), simbolo: mapVal(w) };
 }
 
-
 // --- INICIALIZACIÓN (SETUP) ---
 function setup() {
   let container = document.getElementById('viz-container');
   canvas = createCanvas(container.offsetWidth, container.offsetHeight);
   canvas.parent('viz-container');
-  
   canvas.drop(handleFile);
 
-  // MODIFICADO: Definir las dimensiones del diagrama
+  // Definir las dimensiones del diagrama
   diagramCenter = createVector(width / 2, height / 2);
-  diagramRadius = min(width, height) * 0.4; // Dejamos un margen
+  diagramRadius = min(width, height) * 0.45; // Dejamos un pequeño margen
 
   attractors = JSON.parse(JSON.stringify(attractorsDefault));
   resetAttractors();
@@ -77,7 +75,7 @@ function setup() {
   updateList();
 }
 
-// MODIFICADO: Posiciones iniciales de los atractores en los vértices del diagrama
+// Posiciones iniciales de los atractores en los vértices del diagrama
 function resetAttractors() {
     angleMode(DEGREES); // Usar grados para que sea más intuitivo
     attractors.indice.pos = createVector(
@@ -92,37 +90,38 @@ function resetAttractors() {
         diagramCenter.x + diagramRadius * cos(270),
         diagramCenter.y + diagramRadius * sin(270)
     );
+    recalculateAllPoints();
 }
 
 // --- BUCLE DE DIBUJO (DRAW) ---
 function draw() {
   background(11, 11, 11);
-  drawDiagramBackground(); // NUEVO: Dibuja el diagrama
+  drawDiagramBackground(); // Dibuja el diagrama
   drawAttractors();
   drawPoints();
 }
 
-// NUEVO: Función para dibujar el fondo del diagrama
+// Función para dibujar el fondo del diagrama
 function drawDiagramBackground() {
     noStroke();
     angleMode(DEGREES);
 
-    // Sector Verde (Índice)
+    // Sector Verde (Índice) - Arriba Derecha
     fill(attractors.indice.color);
     arc(diagramCenter.x, diagramCenter.y, diagramRadius * 2, diagramRadius * 2, -30, 90, PIE);
 
-    // Sector Rojo (Ícono)
+    // Sector Rojo (Ícono) - Arriba Izquierda
     fill(attractors.icono.color);
     arc(diagramCenter.x, diagramCenter.y, diagramRadius * 2, diagramRadius * 2, 90, 210, PIE);
     
-    // Sector Azul (Símbolo)
+    // Sector Azul (Símbolo) - Abajo
     fill(attractors.simbolo.color);
     arc(diagramCenter.x, diagramCenter.y, diagramRadius * 2, diagramRadius * 2, 210, 330, PIE);
     
     // Contorno del círculo
     noFill();
     stroke(0);
-    strokeWeight(2);
+    strokeWeight(2.5);
     circle(diagramCenter.x, diagramCenter.y, diagramRadius * 2);
 }
 
@@ -135,11 +134,17 @@ function drawAttractors() {
     circle(att.pos.x, att.pos.y, att.r * 2);
 
     if (labelsVisible) {
+      push();
       noStroke();
       fill(234, 234, 234);
       textSize(14);
-      let offset = att.name === 'Símbolo' ? -att.r - 5 : att.r + 5;
-      text(att.name, att.pos.x + offset, att.pos.y + 5);
+      textAlign(CENTER, CENTER);
+      let offset = att.r + 15;
+      let angle = atan2(att.pos.y - diagramCenter.y, att.pos.x - diagramCenter.x);
+      let textX = att.pos.x + offset * cos(angle);
+      let textY = att.pos.y + offset * sin(angle);
+      text(att.name, textX, textY);
+      pop();
     }
   }
 }
@@ -183,18 +188,19 @@ function drawPoints() {
 // --- MANEJO DE INTERACTIVIDAD (EVENTOS) ---
 
 function mousePressed() {
-  // Ignorar clics fuera del diagrama
-  if (dist(mouseX, mouseY, diagramCenter.x, diagramCenter.y) > diagramRadius) {
+  if (dist(mouseX, mouseY, diagramCenter.x, diagramCenter.y) > diagramRadius + 15) { // Un poco de margen
     draggedPoint = null;
     draggedAttractor = null;
-    selectedId = null;
-    updateList();
+    if(selectedId) {
+        selectedId = null;
+        updateList();
+    }
     return;
   }
   
   if (calibMode) {
     for (const key in attractors) {
-      if (dist(mouseX, mouseY, attractors[key].pos.x, attractors[key].pos.y) < attractors[key].r) {
+      if (dist(mouseX, mouseY, attractors[key].pos.x, attractors[key].pos.y) < attractors[key].r + 5) {
         draggedAttractor = attractors[key];
         return; 
       }
@@ -214,13 +220,10 @@ function mousePressed() {
   
   draggedPoint = null;
   draggedAttractor = null;
-  selectedId = null;
-  updateList();
 }
 
 function mouseDragged() {
     let constrainedPos = createVector(mouseX, mouseY);
-    // MODIFICADO: Restringir el arrastre al interior del círculo
     let d = dist(mouseX, mouseY, diagramCenter.x, diagramCenter.y);
     if (d > diagramRadius) {
         let v = p5.Vector.sub(constrainedPos, diagramCenter);
@@ -249,16 +252,12 @@ function mouseReleased() {
 function windowResized() {
     let container = document.getElementById('viz-container');
     resizeCanvas(container.offsetWidth, container.offsetHeight);
-    // MODIFICADO: Recalcular dimensiones del diagrama al cambiar tamaño
     diagramCenter = createVector(width / 2, height / 2);
-    diagramRadius = min(width, height) * 0.4;
+    diagramRadius = min(width, height) * 0.45;
     resetAttractors();
-    recalculateAllPoints();
 }
 
-
-// --- El resto del código (funciones de control del DOM, listas, etc.) es idéntico ---
-// --- No es necesario copiar esta parte si ya la tienes del código anterior. ---
+// --- FUNCIONES DE CONTROL DEL DOM ---
 
 function setupDOMControls() {
   listContainer = document.getElementById('list');
@@ -274,7 +273,7 @@ function setupDOMControls() {
         updateSliderLabels();
         if (selectedId) {
             const p = points.find(pt => pt.id === selectedId);
-            if(p) {
+            if(p && !p.locked) {
                 p.vals[key] = parseInt(sliders[key].value);
                 p.pos = computeFromSliders(p.vals);
                 updateListItem(p);
@@ -289,7 +288,7 @@ function setupDOMControls() {
   document.getElementById('exportBtn').addEventListener('click', () => saveCanvas('mapa-semiotico', 'png'));
   document.getElementById('toggleCalib').addEventListener('click', toggleCalibMode);
   document.getElementById('toggleLabels').addEventListener('click', () => { labelsVisible = !labelsVisible; });
-  document.getElementById('resetCalib').addEventListener('click', () => { resetAttractors(); recalculateAllPoints(); });
+  document.getElementById('resetCalib').addEventListener('click', () => { resetAttractors(); });
   document.getElementById('recalcAll').addEventListener('click', recalculateAllPoints);
   
   updateSliderLabels();
@@ -301,8 +300,7 @@ function addPoint(name, img = null, dropPos = null) {
 
     let finalPos = dropPos ? createVector(dropPos.x, dropPos.y) : null;
     if (finalPos) {
-        let d = dist(finalPos.x, finalPos.y, diagramCenter.x, diagramCenter.y);
-        if (d > diagramRadius) {
+        if (dist(finalPos.x, finalPos.y, diagramCenter.x, diagramCenter.y) > diagramRadius) {
             finalPos = null; // Si se suelta fuera, usar valores de sliders
         }
     }
