@@ -7,6 +7,10 @@ const attractorsDefault = {
   simbolo: { r: 10, name: 'Símbolo', color: '#38bdf8' }
 };
 
+// MODIFICADO: Variables para el diagrama
+let diagramCenter;
+let diagramRadius;
+
 let canvas;
 let draggedPoint = null;
 let draggedAttractor = null;
@@ -22,6 +26,7 @@ let listContainer;
 
 
 // --- LÓGICA DE CÁLCULO (Coordenadas Baricéntricas) ---
+// Esta lógica no necesita cambios, funciona con cualquier triángulo de atractores.
 function computeFromSliders(vals) {
   const wI = Math.max(vals.icono, 1);
   const wD = Math.max(vals.indice, 1);
@@ -59,36 +64,73 @@ function setup() {
   canvas = createCanvas(container.offsetWidth, container.offsetHeight);
   canvas.parent('viz-container');
   
-  // Manejo de Drag and Drop para archivos
   canvas.drop(handleFile);
 
-  // Inicializar posiciones de atractores
+  // MODIFICADO: Definir las dimensiones del diagrama
+  diagramCenter = createVector(width / 2, height / 2);
+  diagramRadius = min(width, height) * 0.4; // Dejamos un margen
+
   attractors = JSON.parse(JSON.stringify(attractorsDefault));
   resetAttractors();
   
-  // Vincular controles del DOM
   setupDOMControls();
   updateList();
 }
 
+// MODIFICADO: Posiciones iniciales de los atractores en los vértices del diagrama
 function resetAttractors() {
-    attractors.icono.pos = createVector(width * 0.15, height * 0.2);
-    attractors.indice.pos = createVector(width * 0.5, height * 0.8);
-    attractors.simbolo.pos = createVector(width * 0.85, height * 0.2);
+    angleMode(DEGREES); // Usar grados para que sea más intuitivo
+    attractors.indice.pos = createVector(
+        diagramCenter.x + diagramRadius * cos(30),
+        diagramCenter.y + diagramRadius * sin(30)
+    );
+    attractors.icono.pos = createVector(
+        diagramCenter.x + diagramRadius * cos(150),
+        diagramCenter.y + diagramRadius * sin(150)
+    );
+    attractors.simbolo.pos = createVector(
+        diagramCenter.x + diagramRadius * cos(270),
+        diagramCenter.y + diagramRadius * sin(270)
+    );
 }
 
 // --- BUCLE DE DIBUJO (DRAW) ---
 function draw() {
   background(11, 11, 11);
+  drawDiagramBackground(); // NUEVO: Dibuja el diagrama
   drawAttractors();
   drawPoints();
+}
+
+// NUEVO: Función para dibujar el fondo del diagrama
+function drawDiagramBackground() {
+    noStroke();
+    angleMode(DEGREES);
+
+    // Sector Verde (Índice)
+    fill(attractors.indice.color);
+    arc(diagramCenter.x, diagramCenter.y, diagramRadius * 2, diagramRadius * 2, -30, 90, PIE);
+
+    // Sector Rojo (Ícono)
+    fill(attractors.icono.color);
+    arc(diagramCenter.x, diagramCenter.y, diagramRadius * 2, diagramRadius * 2, 90, 210, PIE);
+    
+    // Sector Azul (Símbolo)
+    fill(attractors.simbolo.color);
+    arc(diagramCenter.x, diagramCenter.y, diagramRadius * 2, diagramRadius * 2, 210, 330, PIE);
+    
+    // Contorno del círculo
+    noFill();
+    stroke(0);
+    strokeWeight(2);
+    circle(diagramCenter.x, diagramCenter.y, diagramRadius * 2);
 }
 
 function drawAttractors() {
   for (const key in attractors) {
     const att = attractors[key];
     stroke(0);
-    strokeWeight(1);
+    strokeWeight(1.5);
     fill(att.color);
     circle(att.pos.x, att.pos.y, att.r * 2);
 
@@ -96,7 +138,8 @@ function drawAttractors() {
       noStroke();
       fill(234, 234, 234);
       textSize(14);
-      text(att.name, att.pos.x + att.r + 5, att.pos.y + 5);
+      let offset = att.name === 'Símbolo' ? -att.r - 5 : att.r + 5;
+      text(att.name, att.pos.x + offset, att.pos.y + 5);
     }
   }
 }
@@ -108,7 +151,6 @@ function drawPoints() {
     push();
     translate(p.pos.x, p.pos.y);
     
-    // Dibujar imagen o forma
     if (p.img) {
       const size = p.size * 2;
       imageMode(CENTER);
@@ -126,10 +168,8 @@ function drawPoints() {
       rect(0, 0, p.size * 1.5, p.size * 1.5);
     }
 
-    // Dibujar etiqueta
     if (labelsVisible && (isSelected || (draggedPoint && draggedPoint.id === p.id))) {
         textAlign(CENTER);
-        // Sombra para legibilidad
         fill(11,11,11,180);
         noStroke();
         text(`${p.name}${p.locked ? ' 🔒' : ''}`, 0, -p.size - 10);
@@ -143,18 +183,24 @@ function drawPoints() {
 // --- MANEJO DE INTERACTIVIDAD (EVENTOS) ---
 
 function mousePressed() {
-  // Prioridad: Arrastrar atractor (si está en modo calibración)
+  // Ignorar clics fuera del diagrama
+  if (dist(mouseX, mouseY, diagramCenter.x, diagramCenter.y) > diagramRadius) {
+    draggedPoint = null;
+    draggedAttractor = null;
+    selectedId = null;
+    updateList();
+    return;
+  }
+  
   if (calibMode) {
     for (const key in attractors) {
       if (dist(mouseX, mouseY, attractors[key].pos.x, attractors[key].pos.y) < attractors[key].r) {
         draggedAttractor = attractors[key];
-        return; // Salir para no arrastrar un punto a la vez
+        return; 
       }
     }
   }
 
-  // Arrastrar punto (si no está bloqueado)
-  // Iterar en orden inverso para seleccionar el de arriba
   for (let i = points.length - 1; i >= 0; i--) {
     const p = points[i];
     if (!p.locked && dist(mouseX, mouseY, p.pos.x, p.pos.y) < p.size) {
@@ -166,7 +212,6 @@ function mousePressed() {
     }
   }
   
-  // Si no se clickea en nada, deseleccionar
   draggedPoint = null;
   draggedAttractor = null;
   selectedId = null;
@@ -174,17 +219,26 @@ function mousePressed() {
 }
 
 function mouseDragged() {
-  if (draggedAttractor) {
-    draggedAttractor.pos.x = constrain(mouseX, 0, width);
-    draggedAttractor.pos.y = constrain(mouseY, 0, height);
-    recalculateAllPoints();
-  } else if (draggedPoint) {
-    draggedPoint.pos.x = constrain(mouseX, 0, width);
-    draggedPoint.pos.y = constrain(mouseY, 0, height);
-    draggedPoint.vals = slidersFromPosition(draggedPoint.pos.x, draggedPoint.pos.y);
-    updateSlidersFromPoint(draggedPoint);
-    updateListItem(draggedPoint);
-  }
+    let constrainedPos = createVector(mouseX, mouseY);
+    // MODIFICADO: Restringir el arrastre al interior del círculo
+    let d = dist(mouseX, mouseY, diagramCenter.x, diagramCenter.y);
+    if (d > diagramRadius) {
+        let v = p5.Vector.sub(constrainedPos, diagramCenter);
+        v.setMag(diagramRadius);
+        constrainedPos = p5.Vector.add(diagramCenter, v);
+    }
+    
+    if (draggedAttractor) {
+        draggedAttractor.pos.x = constrainedPos.x;
+        draggedAttractor.pos.y = constrainedPos.y;
+        recalculateAllPoints();
+    } else if (draggedPoint) {
+        draggedPoint.pos.x = constrainedPos.x;
+        draggedPoint.pos.y = constrainedPos.y;
+        draggedPoint.vals = slidersFromPosition(draggedPoint.pos.x, draggedPoint.pos.y);
+        updateSlidersFromPoint(draggedPoint);
+        updateListItem(draggedPoint);
+    }
 }
 
 function mouseReleased() {
@@ -195,11 +249,16 @@ function mouseReleased() {
 function windowResized() {
     let container = document.getElementById('viz-container');
     resizeCanvas(container.offsetWidth, container.offsetHeight);
-    // Opcional: recalcular posiciones relativas si se desea
+    // MODIFICADO: Recalcular dimensiones del diagrama al cambiar tamaño
+    diagramCenter = createVector(width / 2, height / 2);
+    diagramRadius = min(width, height) * 0.4;
+    resetAttractors();
+    recalculateAllPoints();
 }
 
 
-// --- FUNCIONES DE CONTROL DEL DOM ---
+// --- El resto del código (funciones de control del DOM, listas, etc.) es idéntico ---
+// --- No es necesario copiar esta parte si ya la tienes del código anterior. ---
 
 function setupDOMControls() {
   listContainer = document.getElementById('list');
@@ -210,7 +269,6 @@ function setupDOMControls() {
   sliderVals.indice = document.getElementById('indiceVal');
   sliderVals.simbolo = document.getElementById('simboloVal');
 
-  // Eventos de Sliders
   for (const key in sliders) {
       sliders[key].addEventListener('input', () => {
         updateSliderLabels();
@@ -225,7 +283,6 @@ function setupDOMControls() {
       });
   }
 
-  // Eventos de Botones
   document.getElementById('addBtn').addEventListener('click', addPoint);
   document.getElementById('clearBtn').addEventListener('click', clearAll);
   document.getElementById('fileInput').addEventListener('change', handleFileInput);
@@ -242,14 +299,22 @@ function addPoint(name, img = null, dropPos = null) {
     const pointName = typeof name === 'string' ? name : (prompt("Dale un nombre al nuevo elemento:", "Elemento sin título") || "Elemento sin título");
     if (!pointName) return;
 
+    let finalPos = dropPos ? createVector(dropPos.x, dropPos.y) : null;
+    if (finalPos) {
+        let d = dist(finalPos.x, finalPos.y, diagramCenter.x, diagramCenter.y);
+        if (d > diagramRadius) {
+            finalPos = null; // Si se suelta fuera, usar valores de sliders
+        }
+    }
+
     const vals = {
         icono: parseInt(sliders.icono.value),
         indice: parseInt(sliders.indice.value),
         simbolo: parseInt(sliders.simbolo.value)
     };
     
-    const pos = dropPos ? createVector(dropPos.x, dropPos.y) : computeFromSliders(vals);
-    const finalVals = dropPos ? slidersFromPosition(pos.x, pos.y) : vals;
+    const pos = finalPos || computeFromSliders(vals);
+    const finalVals = slidersFromPosition(pos.x, pos.y);
 
     const newPoint = {
         id: crypto.randomUUID(),
@@ -290,8 +355,6 @@ function toggleCalibMode() {
     document.getElementById('toggleCalib').textContent = 'Calibración: ' + (calibMode ? 'ACTIVADA' : 'DESACTIVADA');
 }
 
-// --- ACTUALIZACIÓN DE LA LISTA HTML ---
-
 function updateList() {
   listContainer.innerHTML = '';
   points.forEach(p => {
@@ -311,7 +374,6 @@ function updateList() {
       </div>
     `;
 
-    // Eventos de la lista
     item.querySelector('.btn-rename').onclick = (e) => { e.stopPropagation(); const n = prompt('Nuevo nombre:', p.name); if(n) p.name = n; updateList(); };
     item.querySelector('.btn-lock').onclick = (e) => { e.stopPropagation(); p.locked = !p.locked; updateList(); };
     item.querySelector('.delete').onclick = (e) => { e.stopPropagation(); points = points.filter(pt => pt.id !== p.id); if(selectedId === p.id) selectedId = null; updateList(); };
@@ -328,8 +390,6 @@ function updateListItem(p) {
     }
 }
 
-// --- ACTUALIZACIÓN DE SLIDERS ---
-
 function updateSlidersFromPoint(p) {
   sliders.icono.value = p.vals.icono;
   sliders.indice.value = p.vals.indice;
@@ -343,14 +403,14 @@ function updateSliderLabels() {
   }
 }
 
-// --- MANEJO DE ARCHIVOS ---
-
 function handleFile(file) {
   if (file.type === 'image') {
-    loadImage(file.data, img => {
-      const name = file.name.replace(/\.[^/.]+$/, "");
-      addPoint(name, img, {x: mouseX, y: mouseY});
-    });
+    if (dist(mouseX, mouseY, diagramCenter.x, diagramCenter.y) <= diagramRadius) {
+        loadImage(file.data, img => {
+          const name = file.name.replace(/\.[^/.]+$/, "");
+          addPoint(name, img, {x: mouseX, y: mouseY});
+        });
+    }
   }
 }
 
@@ -366,6 +426,5 @@ function handleFileInput(event) {
         };
         reader.readAsDataURL(file);
     }
-    // Limpiar el input para poder subir el mismo archivo de nuevo
     event.target.value = '';
 }
