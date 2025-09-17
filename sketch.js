@@ -9,14 +9,14 @@ const attractorsDefault = {
   simbolo: { r: 10, name: 'Símbolo', color: [56, 189, 248] }
 };
 
-const gradientResolution = 10; 
+const gradientResolution = 10;
 
 let diagramCenter;
 let diagramRadius;
 
 // Buffers para el gradiente y la máscara
 let gradientBuffer;
-let maskBuffer; // NUEVO: Buffer para la máscara
+let maskBuffer;
 
 let canvas;
 let draggedPoint = null;
@@ -27,7 +27,7 @@ let labelsVisible = true;
 let sliders = {}, sliderVals = {}, listContainer;
 
 
-// --- LÓGICA DE CÁLCULO (SIN CAMBIOS) ---
+// --- LÓGICA DE CÁLCULO ---
 function computeFromSliders(vals) {
   const wI = Math.max(vals.icono, 1), wD = Math.max(vals.indice, 1), wS = Math.max(vals.simbolo, 1);
   const sum = wI + wD + wS;
@@ -59,7 +59,6 @@ function setup() {
   canvas.parent('viz-container');
   canvas.drop(handleFile);
 
-  // MODIFICADO: Crear ambos buffers
   gradientBuffer = createGraphics(width, height);
   maskBuffer = createGraphics(width, height);
   
@@ -68,7 +67,6 @@ function setup() {
 
   attractors = JSON.parse(JSON.stringify(attractorsDefault));
   
-  // MODIFICADO: Crear la máscara una sola vez
   updateMaskBuffer();
   resetAttractors();
   
@@ -85,14 +83,12 @@ function resetAttractors() {
     recalculateAllPoints();
 }
 
-// NUEVO: Función para crear la máscara (círculo blanco sobre fondo negro)
 function updateMaskBuffer() {
-    maskBuffer.background(0); // Fondo negro (transparente en la máscara)
-    maskBuffer.fill(255); // Relleno blanco (visible en la máscara)
+    maskBuffer.background(0);
+    maskBuffer.fill(255);
     maskBuffer.noStroke();
     maskBuffer.circle(diagramCenter.x, diagramCenter.y, diagramRadius * 2);
 }
-
 
 function updateGradientBuffer() {
     gradientBuffer.background(11);
@@ -116,29 +112,37 @@ function updateGradientBuffer() {
 
 // --- BUCLE DE DIBUJO (DRAW) - LÓGICA DE MÁSCARA CORREGIDA ---
 function draw() {
-  background(11, 11, 11);
+    background(11, 11, 11);
 
-  // 1. Clonamos el gradiente para no modificar el original
-  let maskedGradient = gradientBuffer.get();
-  
-  // 2. Aplicamos la máscara
-  maskedGradient.mask(maskBuffer);
+    // 1. Dibuja el gradiente completo en el lienzo principal.
+    image(gradientBuffer, 0, 0);
 
-  // 3. Dibujamos la imagen ya enmascarada
-  image(maskedGradient, 0, 0);
+    // 2. Cambia el modo de composición del lienzo a 'destination-in'.
+    // Esto hace que lo nuevo que dibujes (la máscara) actúe como un
+    // "cortador" de lo que ya está dibujado (el gradiente).
+    drawingContext.globalCompositeOperation = 'destination-in';
 
-  // Dibujamos el contorno negro por encima
-  noFill();
-  stroke(0);
-  strokeWeight(2.5);
-  circle(diagramCenter.x, diagramCenter.y, diagramRadius * 2);
+    // 3. Dibuja la máscara (el círculo blanco).
+    // Esto "recortará" el gradiente que dibujamos en el paso 1.
+    image(maskBuffer, 0, 0);
 
-  drawAttractors();
-  drawPoints();
+    // 4. IMPORTANTE: Restaura el modo de composición a su valor por defecto.
+    // Si no haces esto, todo lo demás que dibujes (puntos, atractores)
+    // también intentará recortar, lo cual no queremos.
+    drawingContext.globalCompositeOperation = 'source-over';
+
+    // Dibujamos el contorno negro por encima
+    noFill();
+    stroke(0);
+    strokeWeight(2.5);
+    circle(diagramCenter.x, diagramCenter.y, diagramRadius * 2);
+
+    drawAttractors();
+    drawPoints();
 }
 
 
-// --- EL RESTO DEL CÓDIGO PERMANECE IGUAL ---
+// --- INTERACCIÓN Y EVENTOS ---
 
 function mouseDragged() {
     let constrainedPos = createVector(mouseX, mouseY);
@@ -167,16 +171,84 @@ function windowResized() {
     let container = document.getElementById('viz-container');
     resizeCanvas(container.offsetWidth, container.offsetHeight);
     
-    // MODIFICADO: Redimensionar ambos buffers
     gradientBuffer = createGraphics(width, height);
     maskBuffer = createGraphics(width, height);
     
     diagramCenter = createVector(width / 2, height / 2);
     diagramRadius = min(width, height) * 0.45;
     
-    updateMaskBuffer(); // Volver a crear la máscara con el nuevo tamaño
+    updateMaskBuffer();
     resetAttractors();
 }
+
+function mousePressed() {
+  if (dist(mouseX, mouseY, diagramCenter.x, diagramCenter.y) > diagramRadius + 15) {
+    draggedPoint = null;
+    draggedAttractor = null;
+    if(selectedId) {
+        selectedId = null;
+        updateList();
+    }
+    return;
+  }
+  
+  if (calibMode) {
+    for (const key in attractors) {
+      if (dist(mouseX, mouseY, attractors[key].pos.x, attractors[key].pos.y) < attractors[key].r + 5) {
+        draggedAttractor = attractors[key];
+        return; 
+      }
+    }
+  }
+
+  for (let i = points.length - 1; i >= 0; i--) {
+    const p = points[i];
+    if (!p.locked && dist(mouseX, mouseY, p.pos.x, p.pos.y) < p.size) {
+      draggedPoint = p;
+      selectedId = p.id;
+      updateSlidersFromPoint(p);
+      updateList();
+      return;
+    }
+  }
+  
+  draggedPoint = null;
+  draggedAttractor = null;
+}
+
+function mouseReleased() {
+  draggedPoint = null;
+  draggedAttractor = null;
+}
+
+function handleFile(file) {
+  if (file.type === 'image') {
+    if (dist(mouseX, mouseY, diagramCenter.x, diagramCenter.y) <= diagramRadius) {
+        loadImage(file.data, img => {
+          const name = file.name.replace(/\.[^/.]+$/, "");
+          addPoint(name, img, {x: mouseX, y: mouseY});
+        });
+    }
+  }
+}
+
+function handleFileInput(event) {
+    const files = event.target.files;
+    for (const file of files) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            loadImage(e.target.result, img => {
+                const name = file.name.replace(/\.[^/.]+$/, "");
+                addPoint(name, img);
+            });
+        };
+        reader.readAsDataURL(file);
+    }
+    event.target.value = '';
+}
+
+
+// --- FUNCIONES DE DIBUJO AUXILIARES ---
 
 function drawAttractors() {
   for (const key in attractors) {
@@ -238,45 +310,8 @@ function drawPoints() {
   }
 }
 
-function mousePressed() {
-  if (dist(mouseX, mouseY, diagramCenter.x, diagramCenter.y) > diagramRadius + 15) {
-    draggedPoint = null;
-    draggedAttractor = null;
-    if(selectedId) {
-        selectedId = null;
-        updateList();
-    }
-    return;
-  }
-  
-  if (calibMode) {
-    for (const key in attractors) {
-      if (dist(mouseX, mouseY, attractors[key].pos.x, attractors[key].pos.y) < attractors[key].r + 5) {
-        draggedAttractor = attractors[key];
-        return; 
-      }
-    }
-  }
 
-  for (let i = points.length - 1; i >= 0; i--) {
-    const p = points[i];
-    if (!p.locked && dist(mouseX, mouseY, p.pos.x, p.pos.y) < p.size) {
-      draggedPoint = p;
-      selectedId = p.id;
-      updateSlidersFromPoint(p);
-      updateList();
-      return;
-    }
-  }
-  
-  draggedPoint = null;
-  draggedAttractor = null;
-}
-
-function mouseReleased() {
-  draggedPoint = null;
-  draggedAttractor = null;
-}
+// --- MANEJO DEL DOM Y LA LÓGICA DE LA APP ---
 
 function setupDOMControls() {
   listContainer = document.getElementById('list');
@@ -418,30 +453,4 @@ function updateSliderLabels() {
   for (const key in sliders) {
     sliderVals[key].textContent = `${sliders[key].value}/100`;
   }
-}
-
-function handleFile(file) {
-  if (file.type === 'image') {
-    if (dist(mouseX, mouseY, diagramCenter.x, diagramCenter.y) <= diagramRadius) {
-        loadImage(file.data, img => {
-          const name = file.name.replace(/\.[^/.]+$/, "");
-          addPoint(name, img, {x: mouseX, y: mouseY});
-        });
-    }
-  }
-}
-
-function handleFileInput(event) {
-    const files = event.target.files;
-    for (const file of files) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            loadImage(e.target.result, img => {
-                const name = file.name.replace(/\.[^/.]+$/, "");
-                addPoint(name, img);
-            });
-        };
-        reader.readAsDataURL(file);
-    }
-    event.target.value = '';
 }
