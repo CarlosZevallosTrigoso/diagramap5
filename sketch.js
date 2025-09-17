@@ -1,17 +1,19 @@
-// VERSIÓN CORREGIDA Y FINAL
+// VERSIÓN CON FONDO DE GRADIENTE
 
 // --- VARIABLES GLOBALES ---
 let points = [];
 let attractors;
 const attractorsDefault = {
-  icono: { r: 10, name: 'Ícono', color: '#ef4444' },
-  indice: { r: 10, name: 'Índice', color: '#22c56e' },
-  simbolo: { r: 10, name: 'Símbolo', color: '#38bdf8' }
+  icono:   { r: 10, name: 'Ícono',   color: [239, 68, 68] }, // Usamos arrays RGB para mezclar
+  indice:  { r: 10, name: 'Índice',  color: [34, 197, 94] },
+  simbolo: { r: 10, name: 'Símbolo', color: [56, 189, 248] }
 };
 
-// Variables para el diagrama
 let diagramCenter;
 let diagramRadius;
+
+// NUEVO: Buffer para el gradiente
+let gradientBuffer;
 
 let canvas;
 let draggedPoint = null;
@@ -21,16 +23,11 @@ let selectedId = null;
 let calibMode = true;
 let labelsVisible = true;
 
-// Referencias a los elementos del DOM
-let sliders = {};
-let sliderVals = {};
-let listContainer;
+let sliders = {}, sliderVals = {}, listContainer;
 
-// --- LÓGICA DE CÁLCULO (Coordenadas Baricéntricas) ---
+// --- LÓGICA DE CÁLCULO (SIN CAMBIOS) ---
 function computeFromSliders(vals) {
-  const wI = Math.max(vals.icono, 1);
-  const wD = Math.max(vals.indice, 1);
-  const wS = Math.max(vals.simbolo, 1);
+  const wI = Math.max(vals.icono, 1), wD = Math.max(vals.indice, 1), wS = Math.max(vals.simbolo, 1);
   const sum = wI + wD + wS;
   const x = (wI * attractors.icono.pos.x + wD * attractors.indice.pos.x + wS * attractors.simbolo.pos.x) / sum;
   const y = (wI * attractors.icono.pos.y + wD * attractors.indice.pos.y + wS * attractors.simbolo.pos.y) / sum;
@@ -39,17 +36,12 @@ function computeFromSliders(vals) {
 
 function slidersFromPosition(x, y) {
   const p = createVector(x, y);
-  const a0 = attractors.icono.pos;
-  const a1 = attractors.indice.pos;
-  const a2 = attractors.simbolo.pos;
-  const v0 = p5.Vector.sub(a1, a0);
-  const v1 = p5.Vector.sub(a2, a0);
-  const v2 = p5.Vector.sub(p, a0);
+  const a0 = attractors.icono.pos, a1 = attractors.indice.pos, a2 = attractors.simbolo.pos;
+  const v0 = p5.Vector.sub(a1, a0), v1 = p5.Vector.sub(a2, a0), v2 = p5.Vector.sub(p, a0);
   const d00 = v0.dot(v0), d01 = v0.dot(v1), d11 = v1.dot(v1);
   const d20 = v2.dot(v0), d21 = v2.dot(v1);
   const denom = d00 * d11 - d01 * d01 || 1e-6;
-  let v = (d11 * d20 - d01 * d21) / denom;
-  let w = (d00 * d21 - d01 * d20) / denom;
+  let v = (d11 * d20 - d01 * d21) / denom, w = (d00 * d21 - d01 * d20) / denom;
   let u = 1.0 - v - w;
   u = constrain(u, 0, 1); v = constrain(v, 0, 1); w = constrain(w, 0, 1);
   const s = u + v + w || 1; u /= s; v /= s; w /= s;
@@ -64,9 +56,11 @@ function setup() {
   canvas.parent('viz-container');
   canvas.drop(handleFile);
 
-  // Definir las dimensiones del diagrama
+  // MODIFICADO: Crear el buffer gráfico
+  gradientBuffer = createGraphics(width, height);
+
   diagramCenter = createVector(width / 2, height / 2);
-  diagramRadius = min(width, height) * 0.45; // Dejamos un pequeño margen
+  diagramRadius = min(width, height) * 0.45;
 
   attractors = JSON.parse(JSON.stringify(attractorsDefault));
   resetAttractors();
@@ -75,55 +69,109 @@ function setup() {
   updateList();
 }
 
-// Posiciones iniciales de los atractores en los vértices del diagrama
 function resetAttractors() {
-    angleMode(DEGREES); // Usar grados para que sea más intuitivo
-    attractors.indice.pos = createVector(
-        diagramCenter.x + diagramRadius * cos(30),
-        diagramCenter.y + diagramRadius * sin(30)
-    );
-    attractors.icono.pos = createVector(
-        diagramCenter.x + diagramRadius * cos(150),
-        diagramCenter.y + diagramRadius * sin(150)
-    );
-    attractors.simbolo.pos = createVector(
-        diagramCenter.x + diagramRadius * cos(270),
-        diagramCenter.y + diagramRadius * sin(270)
-    );
+    angleMode(DEGREES);
+    attractors.indice.pos = createVector(diagramCenter.x + diagramRadius * cos(30), diagramCenter.y + diagramRadius * sin(30));
+    attractors.icono.pos = createVector(diagramCenter.x + diagramRadius * cos(150), diagramCenter.y + diagramRadius * sin(150));
+    attractors.simbolo.pos = createVector(diagramCenter.x + diagramRadius * cos(270), diagramCenter.y + diagramRadius * sin(270));
+    
+    // MODIFICADO: Actualizar el gradiente y los puntos al resetear
+    updateGradientBuffer();
     recalculateAllPoints();
+}
+
+// NUEVO: Función que calcula y dibuja el gradiente en el buffer
+function updateGradientBuffer() {
+    gradientBuffer.loadPixels();
+    for (let x = 0; x < gradientBuffer.width; x++) {
+        for (let y = 0; y < gradientBuffer.height; y++) {
+            
+            // Solo colorear dentro del círculo
+            if (dist(x, y, diagramCenter.x, diagramCenter.y) > diagramRadius) {
+                gradientBuffer.set(x, y, color(11, 11, 11)); // Color de fondo
+                continue;
+            }
+
+            const vals = slidersFromPosition(x, y);
+            const total = vals.icono + vals.indice + vals.simbolo;
+
+            // Normalizar pesos a 0-1
+            const wI = vals.icono / total;
+            const wD = vals.indice / total;
+            const wS = vals.simbolo / total;
+
+            // Mezclar colores
+            const c1 = attractors.icono.color;
+            const c2 = attractors.indice.color;
+            const c3 = attractors.simbolo.color;
+
+            const r = c1[0] * wI + c2[0] * wD + c3[0] * wS;
+            const g = c1[1] * wI + c2[1] * wD + c3[1] * wS;
+            const b = c1[2] * wI + c2[2] * wD + c3[2] * wS;
+            
+            gradientBuffer.set(x, y, color(r, g, b));
+        }
+    }
+    gradientBuffer.updatePixels();
 }
 
 // --- BUCLE DE DIBUJO (DRAW) ---
 function draw() {
   background(11, 11, 11);
-  drawDiagramBackground(); // Dibuja el diagrama
+  
+  // MODIFICADO: Dibujar el buffer en lugar del diagrama estático
+  image(gradientBuffer, 0, 0);
+
+  // Contorno del círculo
+  noFill();
+  stroke(0);
+  strokeWeight(2.5);
+  circle(diagramCenter.x, diagramCenter.y, diagramRadius * 2);
+
   drawAttractors();
   drawPoints();
 }
 
-// Función para dibujar el fondo del diagrama
-function drawDiagramBackground() {
-    noStroke();
-    angleMode(DEGREES);
+// --- MANEJO DE INTERACTIVIDAD ---
 
-    // Sector Verde (Índice) - Arriba Derecha
-    fill(attractors.indice.color);
-    arc(diagramCenter.x, diagramCenter.y, diagramRadius * 2, diagramRadius * 2, -30, 90, PIE);
-
-    // Sector Rojo (Ícono) - Arriba Izquierda
-    fill(attractors.icono.color);
-    arc(diagramCenter.x, diagramCenter.y, diagramRadius * 2, diagramRadius * 2, 90, 210, PIE);
+function mouseDragged() {
+    let constrainedPos = createVector(mouseX, mouseY);
+    let d = dist(mouseX, mouseY, diagramCenter.x, diagramCenter.y);
+    if (d > diagramRadius) {
+        let v = p5.Vector.sub(constrainedPos, diagramCenter);
+        v.setMag(diagramRadius);
+        constrainedPos = p5.Vector.add(diagramCenter, v);
+    }
     
-    // Sector Azul (Símbolo) - Abajo
-    fill(attractors.simbolo.color);
-    arc(diagramCenter.x, diagramCenter.y, diagramRadius * 2, diagramRadius * 2, 210, 330, PIE);
-    
-    // Contorno del círculo
-    noFill();
-    stroke(0);
-    strokeWeight(2.5);
-    circle(diagramCenter.x, diagramCenter.y, diagramRadius * 2);
+    if (draggedAttractor) {
+        draggedAttractor.pos.x = constrainedPos.x;
+        draggedAttractor.pos.y = constrainedPos.y;
+        recalculateAllPoints();
+        // MODIFICADO: Actualizar el gradiente al arrastrar un atractor
+        updateGradientBuffer(); 
+    } else if (draggedPoint) {
+        draggedPoint.pos.x = constrainedPos.x;
+        draggedPoint.pos.y = constrainedPos.y;
+        draggedPoint.vals = slidersFromPosition(draggedPoint.pos.x, draggedPoint.pos.y);
+        updateSlidersFromPoint(draggedPoint);
+        updateListItem(draggedPoint);
+    }
 }
+
+function windowResized() {
+    let container = document.getElementById('viz-container');
+    resizeCanvas(container.offsetWidth, container.offsetHeight);
+    // MODIFICADO: Redimensionar también el buffer
+    gradientBuffer = createGraphics(width, height);
+    diagramCenter = createVector(width / 2, height / 2);
+    diagramRadius = min(width, height) * 0.45;
+    resetAttractors(); // Esto ya llama a updateGradientBuffer y recalculateAllPoints
+}
+
+
+// --- El resto de las funciones (drawAttractors, drawPoints, mousePressed, etc.)
+// --- y toda la sección de control del DOM permanecen sin cambios.
+// --- Puedes copiar y pegar todo el bloque para asegurarte.
 
 function drawAttractors() {
   for (const key in attractors) {
@@ -185,10 +233,8 @@ function drawPoints() {
   }
 }
 
-// --- MANEJO DE INTERACTIVIDAD (EVENTOS) ---
-
 function mousePressed() {
-  if (dist(mouseX, mouseY, diagramCenter.x, diagramCenter.y) > diagramRadius + 15) { // Un poco de margen
+  if (dist(mouseX, mouseY, diagramCenter.x, diagramCenter.y) > diagramRadius + 15) {
     draggedPoint = null;
     draggedAttractor = null;
     if(selectedId) {
@@ -222,42 +268,10 @@ function mousePressed() {
   draggedAttractor = null;
 }
 
-function mouseDragged() {
-    let constrainedPos = createVector(mouseX, mouseY);
-    let d = dist(mouseX, mouseY, diagramCenter.x, diagramCenter.y);
-    if (d > diagramRadius) {
-        let v = p5.Vector.sub(constrainedPos, diagramCenter);
-        v.setMag(diagramRadius);
-        constrainedPos = p5.Vector.add(diagramCenter, v);
-    }
-    
-    if (draggedAttractor) {
-        draggedAttractor.pos.x = constrainedPos.x;
-        draggedAttractor.pos.y = constrainedPos.y;
-        recalculateAllPoints();
-    } else if (draggedPoint) {
-        draggedPoint.pos.x = constrainedPos.x;
-        draggedPoint.pos.y = constrainedPos.y;
-        draggedPoint.vals = slidersFromPosition(draggedPoint.pos.x, draggedPoint.pos.y);
-        updateSlidersFromPoint(draggedPoint);
-        updateListItem(draggedPoint);
-    }
-}
-
 function mouseReleased() {
   draggedPoint = null;
   draggedAttractor = null;
 }
-
-function windowResized() {
-    let container = document.getElementById('viz-container');
-    resizeCanvas(container.offsetWidth, container.offsetHeight);
-    diagramCenter = createVector(width / 2, height / 2);
-    diagramRadius = min(width, height) * 0.45;
-    resetAttractors();
-}
-
-// --- FUNCIONES DE CONTROL DEL DOM ---
 
 function setupDOMControls() {
   listContainer = document.getElementById('list');
@@ -301,7 +315,7 @@ function addPoint(name, img = null, dropPos = null) {
     let finalPos = dropPos ? createVector(dropPos.x, dropPos.y) : null;
     if (finalPos) {
         if (dist(finalPos.x, finalPos.y, diagramCenter.x, diagramCenter.y) > diagramRadius) {
-            finalPos = null; // Si se suelta fuera, usar valores de sliders
+            finalPos = null;
         }
     }
 
