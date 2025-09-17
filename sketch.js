@@ -111,7 +111,7 @@ function updateGradientBuffer() {
 }
 
 
-// --- BUCLE DE DIBUJO (DRAW) - LÓGICA DE MÁSCARA CORREGIDA ---
+// --- BUCLE DE DIBUJO (DRAW) ---
 function draw() {
     background(11, 11, 11);
 
@@ -119,17 +119,12 @@ function draw() {
     image(gradientBuffer, 0, 0);
 
     // 2. Cambia el modo de composición del lienzo a 'destination-in'.
-    // Esto hace que lo nuevo que dibujes (la máscara) actúe como un
-    // "cortador" de lo que ya está dibujado (el gradiente).
     drawingContext.globalCompositeOperation = 'destination-in';
 
     // 3. Dibuja la máscara (el círculo blanco).
-    // Esto "recortará" el gradiente que dibujamos en el paso 1.
     image(maskBuffer, 0, 0);
 
     // 4. IMPORTANTE: Restaura el modo de composición a su valor por defecto.
-    // Si no haces esto, todo lo demás que dibujes (puntos, atractores)
-    // también intentará recortar, lo cual no queremos.
     drawingContext.globalCompositeOperation = 'source-over';
 
     // Dibujamos el contorno negro por encima
@@ -299,14 +294,21 @@ function drawPoints() {
       rect(0, 0, p.size * 1.5, p.size * 1.5);
     }
 
-    if (labelsVisible && (isSelected || (draggedPoint && draggedPoint.id === p.id))) {
-        textAlign(CENTER);
-        fill(11,11,11,180);
-        noStroke();
-        text(`${p.name}${p.locked ? ' 🔒' : ''}`, 0, -p.size - 10);
-        textSize(11);
-        text(`ico(${p.vals.icono}) ind(${p.vals.indice}) sim(${p.vals.simbolo})`, 0, p.size + 15);
-    }
+    // --- ETIQUETAS SIEMPRE VISIBLES ---
+    textAlign(CENTER);
+    
+    // Dibujar el nombre del ítem
+    fill(11,11,11,180);
+    noStroke();
+    textSize(14);
+    fill(234, 234, 234);
+    text(`${p.name}${p.locked ? ' 🔒' : ''}`, 0, -p.size - 10);
+    
+    // Dibujar los valores ico/ind/sim
+    textSize(11);
+    fill(234, 234, 234);
+    text(`ico(${p.vals.icono}) ind(${p.vals.indice}) sim(${p.vals.simbolo})`, 0, p.size + 15);
+    
     pop();
   }
 }
