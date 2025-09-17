@@ -1,28 +1,27 @@
-// VERSIÓN CON FONDO DE GRADIENTE
+// VERSIÓN OPTIMIZADA (CARGA RÁPIDA)
 
 // --- VARIABLES GLOBALES ---
 let points = [];
 let attractors;
 const attractorsDefault = {
-  icono:   { r: 10, name: 'Ícono',   color: [239, 68, 68] }, // Usamos arrays RGB para mezclar
+  icono:   { r: 10, name: 'Ícono',   color: [239, 68, 68] },
   indice:  { r: 10, name: 'Índice',  color: [34, 197, 94] },
   simbolo: { r: 10, name: 'Símbolo', color: [56, 189, 248] }
 };
 
+// NUEVA VARIABLE: Controla la resolución del gradiente.
+// Un número más alto es más rápido pero más "pixelado". 10 es un buen balance.
+const gradientResolution = 10; 
+
 let diagramCenter;
 let diagramRadius;
-
-// NUEVO: Buffer para el gradiente
 let gradientBuffer;
-
 let canvas;
 let draggedPoint = null;
 let draggedAttractor = null;
 let selectedId = null;
-
 let calibMode = true;
 let labelsVisible = true;
-
 let sliders = {}, sliderVals = {}, listContainer;
 
 // --- LÓGICA DE CÁLCULO (SIN CAMBIOS) ---
@@ -56,7 +55,6 @@ function setup() {
   canvas.parent('viz-container');
   canvas.drop(handleFile);
 
-  // MODIFICADO: Crear el buffer gráfico
   gradientBuffer = createGraphics(width, height);
 
   diagramCenter = createVector(width / 2, height / 2);
@@ -74,55 +72,48 @@ function resetAttractors() {
     attractors.indice.pos = createVector(diagramCenter.x + diagramRadius * cos(30), diagramCenter.y + diagramRadius * sin(30));
     attractors.icono.pos = createVector(diagramCenter.x + diagramRadius * cos(150), diagramCenter.y + diagramRadius * sin(150));
     attractors.simbolo.pos = createVector(diagramCenter.x + diagramRadius * cos(270), diagramCenter.y + diagramRadius * sin(270));
-    
-    // MODIFICADO: Actualizar el gradiente y los puntos al resetear
     updateGradientBuffer();
     recalculateAllPoints();
 }
 
-// NUEVO: Función que calcula y dibuja el gradiente en el buffer
+// FUNCIÓN MODIFICADA: Ahora dibuja rectángulos en lugar de píxeles
 function updateGradientBuffer() {
-    gradientBuffer.loadPixels();
-    for (let x = 0; x < gradientBuffer.width; x++) {
-        for (let y = 0; y < gradientBuffer.height; y++) {
+    gradientBuffer.noStroke(); // No queremos bordes en nuestros rectángulos
+    
+    for (let x = 0; x < gradientBuffer.width; x += gradientResolution) {
+        for (let y = 0; y < gradientBuffer.height; y += gradientResolution) {
             
-            // Solo colorear dentro del círculo
             if (dist(x, y, diagramCenter.x, diagramCenter.y) > diagramRadius) {
-                gradientBuffer.set(x, y, color(11, 11, 11)); // Color de fondo
-                continue;
+                gradientBuffer.fill(11, 11, 11);
+            } else {
+                const vals = slidersFromPosition(x, y);
+                const total = vals.icono + vals.indice + vals.simbolo;
+
+                const wI = vals.icono / total;
+                const wD = vals.indice / total;
+                const wS = vals.simbolo / total;
+
+                const c1 = attractors.icono.color;
+                const c2 = attractors.indice.color;
+                const c3 = attractors.simbolo.color;
+
+                const r = c1[0] * wI + c2[0] * wD + c3[0] * wS;
+                const g = c1[1] * wI + c2[1] * wD + c3[1] * wS;
+                const b = c1[2] * wI + c2[2] * wD + c3[2] * wS;
+                
+                gradientBuffer.fill(r, g, b);
             }
-
-            const vals = slidersFromPosition(x, y);
-            const total = vals.icono + vals.indice + vals.simbolo;
-
-            // Normalizar pesos a 0-1
-            const wI = vals.icono / total;
-            const wD = vals.indice / total;
-            const wS = vals.simbolo / total;
-
-            // Mezclar colores
-            const c1 = attractors.icono.color;
-            const c2 = attractors.indice.color;
-            const c3 = attractors.simbolo.color;
-
-            const r = c1[0] * wI + c2[0] * wD + c3[0] * wS;
-            const g = c1[1] * wI + c2[1] * wD + c3[1] * wS;
-            const b = c1[2] * wI + c2[2] * wD + c3[2] * wS;
-            
-            gradientBuffer.set(x, y, color(r, g, b));
+            // Dibuja el rectángulo del color calculado
+            gradientBuffer.rect(x, y, gradientResolution, gradientResolution);
         }
     }
-    gradientBuffer.updatePixels();
 }
 
 // --- BUCLE DE DIBUJO (DRAW) ---
 function draw() {
   background(11, 11, 11);
-  
-  // MODIFICADO: Dibujar el buffer en lugar del diagrama estático
   image(gradientBuffer, 0, 0);
 
-  // Contorno del círculo
   noFill();
   stroke(0);
   strokeWeight(2.5);
@@ -132,7 +123,7 @@ function draw() {
   drawPoints();
 }
 
-// --- MANEJO DE INTERACTIVIDAD ---
+// --- El resto del código es idéntico a la versión anterior ---
 
 function mouseDragged() {
     let constrainedPos = createVector(mouseX, mouseY);
@@ -147,7 +138,6 @@ function mouseDragged() {
         draggedAttractor.pos.x = constrainedPos.x;
         draggedAttractor.pos.y = constrainedPos.y;
         recalculateAllPoints();
-        // MODIFICADO: Actualizar el gradiente al arrastrar un atractor
         updateGradientBuffer(); 
     } else if (draggedPoint) {
         draggedPoint.pos.x = constrainedPos.x;
@@ -161,17 +151,11 @@ function mouseDragged() {
 function windowResized() {
     let container = document.getElementById('viz-container');
     resizeCanvas(container.offsetWidth, container.offsetHeight);
-    // MODIFICADO: Redimensionar también el buffer
     gradientBuffer = createGraphics(width, height);
     diagramCenter = createVector(width / 2, height / 2);
     diagramRadius = min(width, height) * 0.45;
-    resetAttractors(); // Esto ya llama a updateGradientBuffer y recalculateAllPoints
+    resetAttractors();
 }
-
-
-// --- El resto de las funciones (drawAttractors, drawPoints, mousePressed, etc.)
-// --- y toda la sección de control del DOM permanecen sin cambios.
-// --- Puedes copiar y pegar todo el bloque para asegurarte.
 
 function drawAttractors() {
   for (const key in attractors) {
