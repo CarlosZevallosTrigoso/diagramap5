@@ -1,4 +1,4 @@
-// VERSIÓN OPTIMIZADA (CARGA RÁPIDA)
+// VERSIÓN FINAL CON BORDES SUAVES
 
 // --- VARIABLES GLOBALES ---
 let points = [];
@@ -9,8 +9,6 @@ const attractorsDefault = {
   simbolo: { r: 10, name: 'Símbolo', color: [56, 189, 248] }
 };
 
-// NUEVA VARIABLE: Controla la resolución del gradiente.
-// Un número más alto es más rápido pero más "pixelado". 10 es un buen balance.
 const gradientResolution = 10; 
 
 let diagramCenter;
@@ -56,7 +54,9 @@ function setup() {
   canvas.drop(handleFile);
 
   gradientBuffer = createGraphics(width, height);
-
+  // MODIFICADO: smoothed al crear el buffer para mejor renderizado de formas
+  gradientBuffer.pixelDensity(1); 
+  
   diagramCenter = createVector(width / 2, height / 2);
   diagramRadius = min(width, height) * 0.45;
 
@@ -76,44 +76,59 @@ function resetAttractors() {
     recalculateAllPoints();
 }
 
-// FUNCIÓN MODIFICADA: Ahora dibuja rectángulos en lugar de píxeles
+// FUNCIÓN MODIFICADA: Asegura que el gradiente se dibuje en todo el buffer
 function updateGradientBuffer() {
-    gradientBuffer.noStroke(); // No queremos bordes en nuestros rectángulos
+    gradientBuffer.background(11, 11, 11); // Limpia el buffer con el color de fondo
+    gradientBuffer.noStroke();
     
-    for (let x = 0; x < gradientBuffer.width; x += gradientResolution) {
-        for (let y = 0; y < gradientBuffer.height; y += gradientResolution) {
+    // Iteramos sobre un área ligeramente más grande para cubrir bien el círculo
+    let bufferMargin = gradientResolution * 2; 
+
+    for (let x = 0; x < gradientBuffer.width + bufferMargin; x += gradientResolution) {
+        for (let y = 0; y < gradientBuffer.height + bufferMargin; y += gradientResolution) {
             
-            if (dist(x, y, diagramCenter.x, diagramCenter.y) > diagramRadius) {
-                gradientBuffer.fill(11, 11, 11);
-            } else {
-                const vals = slidersFromPosition(x, y);
-                const total = vals.icono + vals.indice + vals.simbolo;
+            // Calculamos el color incluso si está fuera del círculo,
+            // la máscara se encargará de recortar después.
+            const vals = slidersFromPosition(x, y);
+            const total = vals.icono + vals.indice + vals.simbolo;
 
-                const wI = vals.icono / total;
-                const wD = vals.indice / total;
-                const wS = vals.simbolo / total;
+            const wI = vals.icono / total;
+            const wD = vals.indice / total;
+            const wS = vals.simbolo / total;
 
-                const c1 = attractors.icono.color;
-                const c2 = attractors.indice.color;
-                const c3 = attractors.simbolo.color;
+            const c1 = attractors.icono.color;
+            const c2 = attractors.indice.color;
+            const c3 = attractors.simbolo.color;
 
-                const r = c1[0] * wI + c2[0] * wD + c3[0] * wS;
-                const g = c1[1] * wI + c2[1] * wD + c3[1] * wS;
-                const b = c1[2] * wI + c2[2] * wD + c3[2] * wS;
-                
-                gradientBuffer.fill(r, g, b);
-            }
-            // Dibuja el rectángulo del color calculado
+            const r = c1[0] * wI + c2[0] * wD + c3[0] * wS;
+            const g = c1[1] * wI + c2[1] * wD + c3[1] * wS;
+            const b = c1[2] * wI + c2[2] * wD + c3[2] * wS;
+            
+            gradientBuffer.fill(r, g, b);
             gradientBuffer.rect(x, y, gradientResolution, gradientResolution);
         }
     }
 }
 
-// --- BUCLE DE DIBUJO (DRAW) ---
+// --- BUCLE DE DIBUJO (DRAW) - FUNCIÓN CRÍTICA MODIFICADA ---
 function draw() {
   background(11, 11, 11);
+
+  // **** NUEVA LÓGICA DE ENMASCARAMIENTO ****
+  push(); // Guarda el estado actual de dibujo
+  
+  // 1. Dibuja el círculo para usarlo como máscara
+  beginClip(); // Inicia el modo de recorte
+  circle(diagramCenter.x, diagramCenter.y, diagramRadius * 2); // Dibuja la forma del recorte
+  endClip(); // Finaliza el modo de recorte, ahora todo lo que se dibuje estará recortado por el círculo
+
+  // 2. Dibuja el buffer del gradiente
   image(gradientBuffer, 0, 0);
 
+  endClip(); // Es importante cerrar el clip para que el resto de los elementos (atractores, puntos) no estén recortados
+  pop(); // Restaura el estado de dibujo anterior
+
+  // Contorno del círculo (se dibuja por encima del gradiente enmascarado)
   noFill();
   stroke(0);
   strokeWeight(2.5);
@@ -152,6 +167,7 @@ function windowResized() {
     let container = document.getElementById('viz-container');
     resizeCanvas(container.offsetWidth, container.offsetHeight);
     gradientBuffer = createGraphics(width, height);
+    gradientBuffer.pixelDensity(1); // Importante para que la máscara funcione bien en pantallas de alta densidad
     diagramCenter = createVector(width / 2, height / 2);
     diagramRadius = min(width, height) * 0.45;
     resetAttractors();
