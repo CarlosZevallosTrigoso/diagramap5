@@ -1,4 +1,4 @@
-// VERSIÓN FINAL CON BORDES SUAVES
+// VERSIÓN FINAL CON MÁSCARA Y BORDES SUAVES
 
 // --- VARIABLES GLOBALES ---
 let points = [];
@@ -13,7 +13,11 @@ const gradientResolution = 10;
 
 let diagramCenter;
 let diagramRadius;
+
+// Buffers para el gradiente y la máscara
 let gradientBuffer;
+let maskBuffer; // NUEVO: Buffer para la máscara
+
 let canvas;
 let draggedPoint = null;
 let draggedAttractor = null;
@@ -21,6 +25,7 @@ let selectedId = null;
 let calibMode = true;
 let labelsVisible = true;
 let sliders = {}, sliderVals = {}, listContainer;
+
 
 // --- LÓGICA DE CÁLCULO (SIN CAMBIOS) ---
 function computeFromSliders(vals) {
@@ -46,6 +51,7 @@ function slidersFromPosition(x, y) {
   return { icono: mapVal(u), indice: mapVal(v), simbolo: mapVal(w) };
 }
 
+
 // --- INICIALIZACIÓN (SETUP) ---
 function setup() {
   let container = document.getElementById('viz-container');
@@ -53,14 +59,17 @@ function setup() {
   canvas.parent('viz-container');
   canvas.drop(handleFile);
 
+  // MODIFICADO: Crear ambos buffers
   gradientBuffer = createGraphics(width, height);
-  // MODIFICADO: smoothed al crear el buffer para mejor renderizado de formas
-  gradientBuffer.pixelDensity(1); 
+  maskBuffer = createGraphics(width, height);
   
   diagramCenter = createVector(width / 2, height / 2);
   diagramRadius = min(width, height) * 0.45;
 
   attractors = JSON.parse(JSON.stringify(attractorsDefault));
+  
+  // MODIFICADO: Crear la máscara una sola vez
+  updateMaskBuffer();
   resetAttractors();
   
   setupDOMControls();
@@ -76,59 +85,49 @@ function resetAttractors() {
     recalculateAllPoints();
 }
 
-// FUNCIÓN MODIFICADA: Asegura que el gradiente se dibuje en todo el buffer
+// NUEVO: Función para crear la máscara (círculo blanco sobre fondo negro)
+function updateMaskBuffer() {
+    maskBuffer.background(0); // Fondo negro (transparente en la máscara)
+    maskBuffer.fill(255); // Relleno blanco (visible en la máscara)
+    maskBuffer.noStroke();
+    maskBuffer.circle(diagramCenter.x, diagramCenter.y, diagramRadius * 2);
+}
+
+
 function updateGradientBuffer() {
-    gradientBuffer.background(11, 11, 11); // Limpia el buffer con el color de fondo
+    gradientBuffer.background(11);
     gradientBuffer.noStroke();
     
-    // Iteramos sobre un área ligeramente más grande para cubrir bien el círculo
-    let bufferMargin = gradientResolution * 2; 
-
-    for (let x = 0; x < gradientBuffer.width + bufferMargin; x += gradientResolution) {
-        for (let y = 0; y < gradientBuffer.height + bufferMargin; y += gradientResolution) {
-            
-            // Calculamos el color incluso si está fuera del círculo,
-            // la máscara se encargará de recortar después.
+    for (let x = 0; x < gradientBuffer.width; x += gradientResolution) {
+        for (let y = 0; y < gradientBuffer.height; y += gradientResolution) {
             const vals = slidersFromPosition(x, y);
             const total = vals.icono + vals.indice + vals.simbolo;
-
-            const wI = vals.icono / total;
-            const wD = vals.indice / total;
-            const wS = vals.simbolo / total;
-
-            const c1 = attractors.icono.color;
-            const c2 = attractors.indice.color;
-            const c3 = attractors.simbolo.color;
-
+            const wI = vals.icono / total, wD = vals.indice / total, wS = vals.simbolo / total;
+            const c1 = attractors.icono.color, c2 = attractors.indice.color, c3 = attractors.simbolo.color;
             const r = c1[0] * wI + c2[0] * wD + c3[0] * wS;
             const g = c1[1] * wI + c2[1] * wD + c3[1] * wS;
             const b = c1[2] * wI + c2[2] * wD + c3[2] * wS;
-            
             gradientBuffer.fill(r, g, b);
             gradientBuffer.rect(x, y, gradientResolution, gradientResolution);
         }
     }
 }
 
-// --- BUCLE DE DIBUJO (DRAW) - FUNCIÓN CRÍTICA MODIFICADA ---
+
+// --- BUCLE DE DIBUJO (DRAW) - LÓGICA DE MÁSCARA CORREGIDA ---
 function draw() {
   background(11, 11, 11);
 
-  // **** NUEVA LÓGICA DE ENMASCARAMIENTO ****
-  push(); // Guarda el estado actual de dibujo
+  // 1. Clonamos el gradiente para no modificar el original
+  let maskedGradient = gradientBuffer.get();
   
-  // 1. Dibuja el círculo para usarlo como máscara
-  beginClip(); // Inicia el modo de recorte
-  circle(diagramCenter.x, diagramCenter.y, diagramRadius * 2); // Dibuja la forma del recorte
-  endClip(); // Finaliza el modo de recorte, ahora todo lo que se dibuje estará recortado por el círculo
+  // 2. Aplicamos la máscara
+  maskedGradient.mask(maskBuffer);
 
-  // 2. Dibuja el buffer del gradiente
-  image(gradientBuffer, 0, 0);
+  // 3. Dibujamos la imagen ya enmascarada
+  image(maskedGradient, 0, 0);
 
-  endClip(); // Es importante cerrar el clip para que el resto de los elementos (atractores, puntos) no estén recortados
-  pop(); // Restaura el estado de dibujo anterior
-
-  // Contorno del círculo (se dibuja por encima del gradiente enmascarado)
+  // Dibujamos el contorno negro por encima
   noFill();
   stroke(0);
   strokeWeight(2.5);
@@ -138,7 +137,8 @@ function draw() {
   drawPoints();
 }
 
-// --- El resto del código es idéntico a la versión anterior ---
+
+// --- EL RESTO DEL CÓDIGO PERMANECE IGUAL ---
 
 function mouseDragged() {
     let constrainedPos = createVector(mouseX, mouseY);
@@ -166,10 +166,15 @@ function mouseDragged() {
 function windowResized() {
     let container = document.getElementById('viz-container');
     resizeCanvas(container.offsetWidth, container.offsetHeight);
+    
+    // MODIFICADO: Redimensionar ambos buffers
     gradientBuffer = createGraphics(width, height);
-    gradientBuffer.pixelDensity(1); // Importante para que la máscara funcione bien en pantallas de alta densidad
+    maskBuffer = createGraphics(width, height);
+    
     diagramCenter = createVector(width / 2, height / 2);
     diagramRadius = min(width, height) * 0.45;
+    
+    updateMaskBuffer(); // Volver a crear la máscara con el nuevo tamaño
     resetAttractors();
 }
 
