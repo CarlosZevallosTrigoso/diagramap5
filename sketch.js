@@ -290,70 +290,18 @@ function drawAttractors() {
 }
 
 function drawDivisionLines() {
+    // MODIFICADO: Dibuja una línea desde cada atractor hasta el centro del diagrama.
     if (!calibMode) return; // Las líneas solo se muestran en modo calibración
 
     stroke(0, 100); // Color semitransparente para las líneas
     strokeWeight(1);
     
-    const attKeys = Object.keys(attractors);
-    
-    // Calcula el centroide de los atractores
-    let centroidX = (attractors.icono.pos.x + attractors.indice.pos.x + attractors.simbolo.pos.x) / 3;
-    let centroidY = (attractors.icono.pos.y + attractors.indice.pos.y + attractors.simbolo.pos.y) / 3;
-    let centroid = createVector(centroidX, centroidY);
-    
-    // Si el centroide está fuera del círculo principal, las líneas podrían verse raras.
-    // Lo más simple para la forma de 'Y' es dibujar desde el centro del círculo a cada atractor.
-    // Sin embargo, para que formen "tres regiones" triangulares como en el ejemplo,
-    // necesitamos que las líneas unan el centro con cada atractor.
-
-    // Dibujar líneas desde el centro del diagrama a cada atractor
     for (const key in attractors) {
         const att = attractors[key];
-        // Calcular la intersección del radio del diagrama con la línea del centro al atractor
-        let v = p5.Vector.sub(att.pos, diagramCenter);
-        v.setMag(diagramRadius); // Extiende el vector hasta el borde del círculo
-        let endPoint = p5.Vector.add(diagramCenter, v);
-        
-        line(diagramCenter.x, diagramCenter.y, endPoint.x, endPoint.y);
+        // Dibuja una línea desde la posición del atractor hasta el centro del círculo.
+        line(att.pos.x, att.pos.y, diagramCenter.x, diagramCenter.y);
     }
 }
-
-// Función auxiliar para calcular la intersección de una línea con un círculo
-// Esta función ya no es necesaria con el nuevo método de dibujo de líneas,
-// pero la mantengo por si la lógica de las líneas cambiara de nuevo.
-function intersectLineCircle(circleCenter, circleRadius, lineStart, lineEnd) {
-    let d = p5.Vector.sub(lineEnd, lineStart);
-    let f = p5.Vector.sub(lineStart, circleCenter);
-
-    let a = d.dot(d);
-    let b = 2 * f.dot(d);
-    let c = f.dot(f) - circleRadius * circleRadius;
-
-    let discriminant = b*b - 4*a*c;
-
-    if (discriminant < 0) {
-        return null; // No hay intersección
-    } else {
-        discriminant = sqrt(discriminant);
-        let t1 = (-b - discriminant) / (2 * a);
-        let t2 = (-b + discriminant) / (2 * a);
-
-        let points = [];
-        if (t1 >= 0 && t1 <= 1) points.push(p5.Vector.add(lineStart, p5.Vector.mult(d, t1)));
-        if (t2 >= 0 && t2 <= 1) points.push(p5.Vector.add(lineStart, p5.Vector.mult(d, t2)));
-        
-        // Devuelve el punto de intersección más cercano al inicio de la línea
-        if (points.length === 1) return points[0];
-        if (points.length === 2) {
-            let d1 = dist(lineStart.x, lineStart.y, points[0].x, points[0].y);
-            let d2 = dist(lineStart.x, lineStart.y, points[1].x, points[1].y);
-            return (d1 < d2) ? points[0] : points[1];
-        }
-        return null; // La línea no intersecta el segmento dentro del círculo
-    }
-}
-
 
 function drawPoints() {
     for (const p of points) {
