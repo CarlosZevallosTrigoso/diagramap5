@@ -1,69 +1,77 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Mapa Semiótico Interactivo (P5.js)</title>
-  
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.js"></script>
-  <link rel="stylesheet" href="style.css">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mapa Semiótico Interactivo (P5.js)</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.js"></script>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <div class="wrap">
-  <section class="card" id="controls">
-    <div class="panel-section">
-      <h1>Mapa semiótico interactivo</h1>
-      <div class="small">💡 Arrastra y suelta imágenes en el mapa, o súbelas desde un archivo. Renombra, bloquea y redimensiona elementos desde la lista.</div>
-    </div>
+    <section class="card" id="controls">
+        <div class="panel-section">
+            <h1>Mapa semiótico interactivo</h1>
+            <div class="small">💡 Arrastra y suelta imágenes en el mapa, o súbelas desde un archivo. Renombra, bloquea y redimensiona elementos desde la lista.</div>
+        </div>
 
-    <div class="panel-section">
-      <h2>Calibración</h2>
-      <div class="row2">
-        <button class="btn" id="toggleCalib">Calibración: ACTIVADA</button>
-        <button class="btn" id="toggleLabels">Ocultar etiquetas</button>
-      </div>
-       <div class="row2" style="margin-top:6px">
-        <button class="btn" id="recalcAll">Recalcular todos</button>
-        <button class="btn" id="resetCalib">Reset atractores</button>
-      </div>
-    </div>
+        <div class="panel-section">
+            <h2>Calibración</h2>
+            <div class="row2">
+                <button class="btn" id="toggleCalib">Calibración: ACTIVADA</button>
+                <button class="btn" id="toggleLabels">Ocultar etiquetas</button>
+            </div>
+               <div class="row2" style="margin-top:6px">
+                <button class="btn" id="recalcAll">Recalcular todos</button>
+                <button class="btn" id="resetCalib">Reset atractores</button>
+            </div>
+        </div>
 
-    <div class="panel-section">
-      <h2>Nuevo elemento</h2>
-      <label>Ícono <span id="iconoVal" class="small">50/100</span></label>
-      <input id="icono" type="range" min="1" max="100" step="1" value="50" />
-      
-      <label>Índice <span id="indiceVal" class="small">50/100</span></label>
-      <input id="indice" type="range" min="1" max="100" step="1" value="50" />
-      
-      <label>Símbolo <span id="simboloVal" class="small">50/100</span></label>
-      <input id="simbolo" type="range" min="1" max="100" step="1" value="50" />
-      
-      <div class="row2" style="margin-top:8px">
-        <button class="btn primary" id="addBtn">Agregar punto</button>
-        <button class="btn" id="clearBtn">Limpiar</button>
-      </div>
-      
-      <label for="fileInput" class="btn" style="display: block; text-align: center; margin-top: 10px; background-color: #3730a3;">Subir imagen desde archivo</label>
-      <input type="file" id="fileInput" accept="image/png, image/jpeg" multiple style="display: none;" />
-    </div>
-    
-    <div class="panel-section" style="flex-grow: 1; display: flex; flex-direction: column;">
-      <h2>Elementos</h2>
-      <div class="list" id="list"></div>
-    </div>
-  </section>
+        <div class="panel-section">
+            <h2>Nuevo elemento</h2>
+            <label>Ícono <span id="iconoVal" class="small">50/100</span></label>
+            <input id="icono" type="range" min="1" max="100" step="1" value="50" />
+            
+            <label>Índice <span id="indiceVal" class="small">50/100</span></label>
+            <input id="indice" type="range" min="1" max="100" step="1" value="50" />
+            
+            <label>Símbolo <span id="simboloVal" class="small">50/100</span></label>
+            <input id="simbolo" type="range" min="1" max="100" step="1" value="50" />
+            
+            <div class="row2" style="margin-top:8px">
+                <button class="btn primary" id="addBtn">Agregar punto</button>
+                <button class="btn" id="clearBtn">Limpiar</button>
+            </div>
+            
+            <label for="fileInput" class="btn" style="display: block; text-align: center; margin-top: 10px; background-color: #3730a3;">Subir imagen desde archivo</label>
+            <input type="file" id="fileInput" accept="image/png, image/jpeg" multiple style="display: none;" />
+        </div>
+        
+        <div class="panel-section" style="flex-grow: 1; display: flex; flex-direction: column;">
+            <h2>Elementos</h2>
+            <div class="list" id="list"></div>
+        </div>
+    </section>
 
-  <section class="card" id="viz-container">
-     <div class="legend">
-      <span><span class="dot" style="background:var(--red)"></span>Ícono</span>
-      <span><span class="dot" style="background:var(--green)"></span>Índice</span>
-      <span><span class="dot" style="background:var(--blue)"></span>Símbolo</span>
-      <span class="small">Calibrá arrastrando los tres atractores.</span>
-    </div>
-    <button id="exportBtn" class="btn">Guardar como PNG</button>
-  </section>
+    <section class="card" id="viz-container">
+           <div class="legend">
+             <span><span class="dot" style="background:var(--red)"></span>Ícono</span>
+             <span><span class="dot" style="background:var(--green)"></span>Índice</span>
+             <span><span class="dot" style="background:var(--blue)"></span>Símbolo</span>
+             <span class="small">Calibrá arrastrando los tres atractores.</span>
+           </div>
+           <div class="gradient-controls">
+               <label for="gradient-mode">Gradiente:</label>
+               <select id="gradient-mode" class="btn">
+                   <option value="full">Degradado Completo</option>
+                   <option value="medium">Degradado Medio</option>
+                   <option value="subtle">Degradado Sutil</option>
+               </select>
+           </div>
+           <button id="exportBtn" class="btn">Guardar como PNG</button>
+    </section>
 </div>
 
 <script src="sketch.js"></script>
