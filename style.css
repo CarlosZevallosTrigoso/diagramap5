@@ -117,7 +117,7 @@ input[type="range"] { width: 100% }
 .gradient-controls {
     position: absolute;
     top: 16px;
-    right: 150px; /* Posición del selector a la izquierda del botón de exportar */
+    right: 180px; /* MODIFICADO: Aumentado de 150px a 180px para más espacio */
     z-index: 10;
     display: flex;
     align-items: center;
