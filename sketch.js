@@ -297,49 +297,31 @@ function drawDivisionLines() {
     
     const attKeys = Object.keys(attractors);
     
-    // Calcula el centroide de los atractores (o simplemente diagramCenter si están en el centro)
+    // Calcula el centroide de los atractores
     let centroidX = (attractors.icono.pos.x + attractors.indice.pos.x + attractors.simbolo.pos.x) / 3;
     let centroidY = (attractors.icono.pos.y + attractors.indice.pos.y + attractors.simbolo.pos.y) / 3;
     let centroid = createVector(centroidX, centroidY);
     
-    // Asegurarse de que el centroide esté dentro del diagrama, si no, usar diagramCenter
-    if (dist(centroid.x, centroid.y, diagramCenter.x, diagramCenter.y) > diagramRadius) {
-        centroid = diagramCenter;
-    }
+    // Si el centroide está fuera del círculo principal, las líneas podrían verse raras.
+    // Lo más simple para la forma de 'Y' es dibujar desde el centro del círculo a cada atractor.
+    // Sin embargo, para que formen "tres regiones" triangulares como en el ejemplo,
+    // necesitamos que las líneas unan el centro con cada atractor.
 
-    for (let i = 0; i < attKeys.length; i++) {
-        const currentAttractor = attractors[attKeys[i]];
-        const nextAttractor = attractors[attKeys[(i + 1) % attKeys.length]]; // Conecta el último con el primero
-
-        // Calcula el punto medio entre dos atractores
-        let midPoint = p5.Vector.add(currentAttractor.pos, nextAttractor.pos).div(2);
+    // Dibujar líneas desde el centro del diagrama a cada atractor
+    for (const key in attractors) {
+        const att = attractors[key];
+        // Calcular la intersección del radio del diagrama con la línea del centro al atractor
+        let v = p5.Vector.sub(att.pos, diagramCenter);
+        v.setMag(diagramRadius); // Extiende el vector hasta el borde del círculo
+        let endPoint = p5.Vector.add(diagramCenter, v);
         
-        // Dibuja una línea desde el atractor opuesto a ese punto medio, extendiéndola
-        const oppositeAttractorKey = attKeys[(i + 2) % attKeys.length];
-        const oppositeAttractor = attractors[oppositeAttractorKey];
-        
-        let v = p5.Vector.sub(midPoint, oppositeAttractor.pos);
-        v.setMag(diagramRadius * 2); // Extiende la línea más allá del círculo si es necesario
-        
-        let start = oppositeAttractor.pos;
-        let end = p5.Vector.add(oppositeAttractor.pos, v);
-        
-        // Recortar la línea para que no se salga del círculo
-        let intersectionStart = intersectLineCircle(diagramCenter, diagramRadius, start, end);
-        let intersectionEnd = intersectLineCircle(diagramCenter, diagramRadius, end, start); // Buscar la otra intersección
-        
-        if (intersectionStart && intersectionEnd) {
-             line(intersectionStart.x, intersectionStart.y, intersectionEnd.x, intersectionEnd.y);
-        } else if (intersectionStart) { // Si solo hay una intersección y el otro punto está fuera
-             line(intersectionStart.x, intersectionStart.y, end.x, end.y); // Usar el punto final original si está dentro del círculo
-        } else if (intersectionEnd) { // Si solo hay una intersección y el otro punto está fuera
-             line(start.x, start.y, intersectionEnd.x, intersectionEnd.y); // Usar el punto inicial original si está dentro del círculo
-        }
+        line(diagramCenter.x, diagramCenter.y, endPoint.x, endPoint.y);
     }
 }
 
 // Función auxiliar para calcular la intersección de una línea con un círculo
-// Devuelve el punto de intersección más cercano a lineStart, o null si no hay
+// Esta función ya no es necesaria con el nuevo método de dibujo de líneas,
+// pero la mantengo por si la lógica de las líneas cambiara de nuevo.
 function intersectLineCircle(circleCenter, circleRadius, lineStart, lineEnd) {
     let d = p5.Vector.sub(lineEnd, lineStart);
     let f = p5.Vector.sub(lineStart, circleCenter);
